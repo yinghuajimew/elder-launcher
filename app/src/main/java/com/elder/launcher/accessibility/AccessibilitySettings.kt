@@ -11,6 +11,7 @@ object AccessibilitySettings {
     private const val PREFS = "elder_accessibility"
     private const val KEY_READ_NOTIFICATIONS = "read_notifications"
     private const val KEY_TAP_TO_READ = "tap_to_read"
+    private const val KEY_HOURLY_CHIME = "hourly_chime"
 
     fun readNotifications(context: Context): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -28,5 +29,15 @@ object AccessibilitySettings {
     fun setTapToRead(context: Context, value: Boolean) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit().putBoolean(KEY_TAP_TO_READ, value).apply()
+    }
+
+    /** 整点报时（系统 TTS 播报当前时间）。 */
+    fun hourlyChime(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(KEY_HOURLY_CHIME, false)
+
+    fun setHourlyChime(context: Context, value: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_HOURLY_CHIME, value).apply()
     }
 }

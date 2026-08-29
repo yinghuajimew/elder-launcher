@@ -11,6 +11,7 @@ import android.provider.OpenableColumns
 import android.util.TypedValue
 import android.view.DragEvent
 import android.view.View
+import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.Button
 import android.widget.GridView
@@ -25,6 +26,7 @@ import com.elder.launcher.desktop.ClockSettings
 import com.elder.launcher.desktop.DesktopApps
 import com.elder.launcher.desktop.DesktopSettings
 import com.elder.launcher.desktop.DesktopTile
+import com.elder.launcher.desktop.PageScrollView
 import com.elder.launcher.desktop.TileType
 import com.elder.launcher.keepalive.LockState
 import com.elder.launcher.lunar.LunarCalendar
@@ -37,19 +39,26 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * 基础桌面（HOME）：固定时钟 + 磁贴网格（应用/视频）+ 设置/退出入口。
+ * 基础桌面（HOME）：固定时钟 + 磁贴网格（应用/视频，可设列数行数、超出一页横向翻页）+ 设置/退出入口。
  * 点击磁贴启动应用或播放视频；长按拖动排序 / 拖到删除区移除。
  * 「+」可选择添加应用或视频。
  */
 class DesktopActivity : BaseActivity() {
 
-    private lateinit var grid: GridView
-    private lateinit var adapter: AppGridAdapter
+    private lateinit var scrollView: PageScrollView
+    private lateinit var pagesContainer: LinearLayout
     private lateinit var tiles: MutableList<DesktopTile>
     private lateinit var deleteZone: TextView
 
+    private var columns = 3
+    private var rows = 3
+    private var pageSize = 9
+    private var pages: List<List<DesktopTile>> = emptyList()
+    private val pageGrids = mutableListOf<GridView>()
+
     private var dragIndex = -1
     private var dragTarget = -1
+    private var dragPage = -1
     private var deleteZoneActive = false
     private var pendingCoverEntries: List<VideoEntry>? = null
 
@@ -60,24 +69,10 @@ class DesktopActivity : BaseActivity() {
         updateDateTime()
         renderClock()
 
-        grid = findViewById(R.id.grid_apps)
+        scrollView = findViewById(R.id.scroll_pages)
+        pagesContainer = findViewById(R.id.pages_container)
         deleteZone = findViewById(R.id.tv_delete_zone)
 
-        grid.setOnItemClickListener { _, _, position, _ ->
-            if (position == tiles.size) {
-                showAddDialog()
-            } else {
-                openTile(tiles[position])
-            }
-        }
-
-        grid.setOnItemLongClickListener { _, view, position, _ ->
-            if (position !in tiles.indices) return@setOnItemLongClickListener false
-            startDrag(view, position)
-            true
-        }
-
-        grid.setOnDragListener { _, event -> handleGridDrag(event) }
         deleteZone.setOnDragListener { _, event -> handleDeleteZoneDrag(event) }
         findViewById<View>(R.id.root).setOnDragListener { _, event -> handleRootDrag(event) }
 
@@ -123,10 +118,10 @@ class DesktopActivity : BaseActivity() {
         val digitalLeft = ClockSettings.digitalLeft(this)
 
         when (mode) {
-            ClockSettings.MODE_ANALOG -> container.addView(analogClock(shape, 220f))
+            ClockSettings.MODE_ANALOG -> container.addView(analogClock(shape, 240f))
             ClockSettings.MODE_BOTH -> {
-                val digital = digitalClock(42f)
-                val analog = analogClock(shape, 150f)
+                val digital = digitalClock(44f)
+                val analog = analogClock(shape, 160f)
                 if (digitalLeft) {
                     container.addView(digital)
                     container.addView(analog)
@@ -135,7 +130,7 @@ class DesktopActivity : BaseActivity() {
                     container.addView(digital)
                 }
             }
-            else -> container.addView(digitalClock(72f))
+            else -> container.addView(digitalClock(80f))
         }
     }
 
@@ -162,10 +157,82 @@ class DesktopActivity : BaseActivity() {
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
 
+    /** 按网格密度计算图标大小（网格越少图标越大）。 */
+    private fun iconSizeDp(): Float {
+        val m = resources.displayMetrics
+        val widthDp = m.widthPixels / m.density
+        val heightDp = m.heightPixels / m.density
+        val cellW = (widthDp - 40f) / columns
+        val cellH = (heightDp * 0.45f) / rows
+        val cell = minOf(cellW, cellH)
+        return (cell * 0.6f).coerceIn(40f, 180f)
+    }
+
+    /** 应用名文字大小，随图标大小缩放。 */
+    private fun labelSizeSp(): Float = (iconSizeDp() * 0.22f).coerceIn(11f, 30f)
+
     private fun reloadAdapter() {
         tiles = DesktopApps.list(this).toMutableList()
-        adapter = AppGridAdapter(this, tiles, DesktopSettings.showAddTile(this))
-        grid.adapter = adapter
+        columns = DesktopSettings.columns(this).coerceAtLeast(1)
+        rows = DesktopSettings.rows(this).coerceAtLeast(1)
+        pageSize = columns * rows
+        renderGrid()
+    }
+
+    /** 按当前列数行数把磁贴拆页并渲染。 */
+    private fun renderGrid() {
+        val width = resources.displayMetrics.widthPixels
+        val prevPage = if (width > 0) scrollView.scrollX / width else 0
+        pagesContainer.removeAllViews()
+        pageGrids.clear()
+        pages = buildPages()
+        val showAdd = DesktopSettings.showAddTile(this)
+        pages.forEachIndexed { i, pageTiles ->
+            val grid = createPageGrid(i, pageTiles, i == pages.lastIndex && showAdd, width)
+            pageGrids.add(grid)
+            pagesContainer.addView(grid)
+        }
+        scrollView.pageWidth = width
+        val targetPage = prevPage.coerceIn(0, pages.size - 1)
+        scrollView.scrollTo(targetPage * width, 0)
+    }
+
+    private fun buildPages(): List<List<DesktopTile>> {
+        val list = tiles.chunked(pageSize).toMutableList()
+        if (list.isEmpty()) list.add(emptyList())
+        val showAdd = DesktopSettings.showAddTile(this)
+        if (showAdd && list.last().size >= pageSize) list.add(emptyList())
+        return list
+    }
+
+    private fun createPageGrid(pageIndex: Int, pageTiles: List<DesktopTile>, showAdd: Boolean, width: Int): GridView {
+        val grid = GridView(this)
+        grid.tag = pageIndex
+        grid.numColumns = columns
+        grid.layoutParams = LinearLayout.LayoutParams(width, ViewGroup.LayoutParams.WRAP_CONTENT)
+        grid.setPadding(dp(16), dp(8), dp(16), dp(16))
+        grid.clipToPadding = false
+        grid.stretchMode = GridView.STRETCH_COLUMN_WIDTH
+        grid.horizontalSpacing = dp(8)
+        grid.verticalSpacing = dp(12)
+        grid.adapter = AppGridAdapter(this, pageTiles.toMutableList(), showAdd, iconSizeDp(), labelSizeSp())
+
+        grid.setOnItemClickListener { _, _, position, _ ->
+            if (showAdd && position == pageTiles.size) {
+                showAddDialog()
+            } else {
+                openTile(pageTiles[position])
+            }
+        }
+
+        grid.setOnItemLongClickListener { _, view, position, _ ->
+            if (position !in pageTiles.indices) return@setOnItemLongClickListener false
+            startDrag(pageIndex * pageSize + position, view)
+            true
+        }
+
+        grid.setOnDragListener { v, event -> handleGridDrag(v as GridView, event) }
+        return grid
     }
 
     // ==================== 磁贴点击 ====================
@@ -330,9 +397,10 @@ class DesktopActivity : BaseActivity() {
 
     // ==================== 拖动 ====================
 
-    private fun startDrag(view: View, position: Int) {
-        dragIndex = position
-        dragTarget = position
+    private fun startDrag(globalIndex: Int, view: View) {
+        dragIndex = globalIndex
+        dragTarget = globalIndex
+        dragPage = globalIndex / pageSize
         deleteZone.alpha = 1f
         val clip = ClipData.newPlainText("", "")
         val shadow = View.DragShadowBuilder(view)
@@ -344,12 +412,15 @@ class DesktopActivity : BaseActivity() {
         }
     }
 
-    private fun handleGridDrag(event: DragEvent): Boolean {
+    private fun handleGridDrag(grid: GridView, event: DragEvent): Boolean {
         when (event.action) {
             DragEvent.ACTION_DRAG_LOCATION -> {
-                val pos = grid.pointToPosition(event.x.toInt(), event.y.toInt())
-                if (pos != AdapterView.INVALID_POSITION && pos < tiles.size) {
-                    dragTarget = pos
+                val pageIdx = grid.tag as Int
+                if (pageIdx == dragPage) {
+                    val pos = grid.pointToPosition(event.x.toInt(), event.y.toInt())
+                    if (pos != AdapterView.INVALID_POSITION && pos < pages[pageIdx].size) {
+                        dragTarget = pageIdx * pageSize + pos
+                    }
                 }
             }
             DragEvent.ACTION_DROP -> finishDrag()
@@ -382,6 +453,7 @@ class DesktopActivity : BaseActivity() {
             DesktopApps.replace(this, tiles)
         }
         cleanupDrag()
+        renderGrid()
     }
 
     private fun deleteDraggedTile() {
@@ -391,14 +463,15 @@ class DesktopActivity : BaseActivity() {
             toast(getString(R.string.toast_removed))
         }
         cleanupDrag()
+        renderGrid()
     }
 
     private fun cleanupDrag() {
         dragIndex = -1
         dragTarget = -1
+        dragPage = -1
         deleteZone.alpha = 0f
         setDeleteZoneActive(false)
-        adapter.notifyDataSetChanged()
     }
 
     private fun setDeleteZoneActive(active: Boolean) {
@@ -411,8 +484,9 @@ class DesktopActivity : BaseActivity() {
     }
 
     private fun refreshExitButton() {
-        findViewById<Button>(R.id.btn_exit_lock).text =
-            if (LockState.lockEnabled(this)) getString(R.string.btn_exit_lock) else getString(R.string.btn_lock)
+        val btn = findViewById<Button>(R.id.btn_exit_lock)
+        btn.visibility = if (DesktopSettings.showExitButton(this)) View.VISIBLE else View.GONE
+        btn.text = if (LockState.lockEnabled(this)) getString(R.string.btn_exit_lock) else getString(R.string.btn_lock)
     }
 
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()

@@ -8,6 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
 import android.widget.Button
+import android.widget.EditText
 import android.widget.ListView
 import android.widget.TextView
 import android.widget.Toast
@@ -40,9 +41,13 @@ class MainActivity : BaseActivity() {
         super.onCreate(savedInstanceState)
         asSettings = intent.getBooleanExtra(EXTRA_AS_SETTINGS, false)
 
-        // 已完成引导且非设置模式 → 直接进入桌面
-        if (OnboardingState.isDone(this) && !asSettings) {
-            startActivity(Intent(this, DesktopActivity::class.java))
+        // 非设置模式：按引导状态路由到桌面或引导向导
+        if (!asSettings) {
+            if (OnboardingState.isDone(this)) {
+                startActivity(Intent(this, DesktopActivity::class.java))
+            } else {
+                startActivity(Intent(this, OnboardingActivity::class.java))
+            }
             finish()
             return
         }
@@ -231,6 +236,10 @@ class MainActivity : BaseActivity() {
             SettingsItem(getString(R.string.item_tap_read), if (AccessibilitySettings.tapToRead(this)) on else off) {
                 AccessibilitySettings.setTapToRead(this, !AccessibilitySettings.tapToRead(this))
                 refresh()
+            },
+            SettingsItem(getString(R.string.item_hourly_chime), if (AccessibilitySettings.hourlyChime(this)) on else off) {
+                AccessibilitySettings.setHourlyChime(this, !AccessibilitySettings.hourlyChime(this))
+                refresh()
             }
         )
     }
@@ -265,6 +274,7 @@ class MainActivity : BaseActivity() {
         SettingsItem(getString(R.string.clock_mode), "", clockModeLabel()) { showClockModeDialog() },
         SettingsItem(getString(R.string.clock_shape), "", clockShapeLabel()) { showClockShapeDialog() },
         SettingsItem(getString(R.string.clock_order), "", clockOrderLabel()) { showClockOrderDialog() },
+        SettingsItem(getString(R.string.grid_size), "", gridLabel()) { showGridDialog() },
         SettingsItem(
             getString(R.string.setting_add_app),
             getString(R.string.setting_add_app_desc)
@@ -340,6 +350,47 @@ class MainActivity : BaseActivity() {
             .show()
     }
 
+    private fun gridLabel(): String =
+        "${DesktopSettings.columns(this)}×${DesktopSettings.rows(this)}"
+
+    private fun showGridDialog() {
+        val presets = listOf(2 to 2, 2 to 3, 2 to 4, 3 to 3, 3 to 4, 3 to 5, 4 to 4, 4 to 5)
+        val options = presets.map { "${it.first}×${it.second}" } + getString(R.string.grid_custom)
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.grid_size))
+            .setItems(options.toTypedArray()) { _, which ->
+                if (which < presets.size) {
+                    val (c, r) = presets[which]
+                    DesktopSettings.setColumns(this, c)
+                    DesktopSettings.setRows(this, r)
+                    refresh()
+                } else {
+                    showCustomGridDialog()
+                }
+            }
+            .show()
+    }
+
+    private fun showCustomGridDialog() {
+        val view = LayoutInflater.from(this).inflate(R.layout.dialog_grid_custom, null)
+        val inputCols = view.findViewById<EditText>(R.id.input_cols)
+        val inputRows = view.findViewById<EditText>(R.id.input_rows)
+        inputCols.setText(DesktopSettings.columns(this).toString())
+        inputRows.setText(DesktopSettings.rows(this).toString())
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.grid_custom))
+            .setView(view)
+            .setPositiveButton(R.string.confirm) { _, _ ->
+                val c = (inputCols.text.toString().toIntOrNull() ?: 1).coerceIn(1, 8)
+                val r = (inputRows.text.toString().toIntOrNull() ?: 1).coerceIn(1, 8)
+                DesktopSettings.setColumns(this, c)
+                DesktopSettings.setRows(this, r)
+                refresh()
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
     private fun playerItems(): List<SettingsItem> = listOf(
         SettingsItem(
             getString(R.string.player_resume),
@@ -393,7 +444,15 @@ class MainActivity : BaseActivity() {
             getString(R.string.lock_mode_title),
             getString(R.string.lock_mode_desc),
             lockStatus()
-        ) { toggleLock() }
+        ) { toggleLock() },
+        SettingsItem(
+            getString(R.string.setting_show_exit_button),
+            getString(R.string.setting_show_exit_button_desc),
+            if (DesktopSettings.showExitButton(this)) getString(R.string.status_on) else getString(R.string.status_off)
+        ) {
+            DesktopSettings.setShowExitButton(this, !DesktopSettings.showExitButton(this))
+            refresh()
+        }
     )
 
     private fun aboutItems(): List<SettingsItem> = listOf(

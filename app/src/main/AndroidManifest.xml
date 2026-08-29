@@ -63,6 +63,12 @@
             </intent-filter>
         </activity>
 
+        <!-- 首次引导：权限分步授权向导 -->
+        <activity
+            android:name=".OnboardingActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
         <!-- 桌面(HOME)：引导完成后进入的主界面 -->
         <activity
             android:name=".DesktopActivity"

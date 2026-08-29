@@ -125,4 +125,29 @@
     <string name="clock_order">双时钟布局</string>
     <string name="clock_order_digital_left">数字在左</string>
     <string name="clock_order_digital_right">数字在右</string>
+    <string name="grid_size">桌面网格</string>
+    <string name="grid_custom">自定义行列</string>
+    <string name="grid_cols">列数</string>
+    <string name="grid_rows">行数</string>
+    <string name="item_hourly_chime">整点报时</string>
+    <string name="setting_show_exit_button">桌面显示退出按钮</string>
+    <string name="setting_show_exit_button_desc">关闭后桌面上不显示退出按钮，需到设置里解锁</string>
+
+    <!-- 引导步骤向导 -->
+    <string name="onboarding_step">第 %1$d 步 / 共 %2$d 步</string>
+    <string name="onboarding_prev">上一步</string>
+    <string name="onboarding_next">下一步</string>
+    <string name="onboarding_go_open">去开启</string>
+    <string name="onboarding_runtime_title">日常权限</string>
+    <string name="onboarding_runtime_desc">授予存储、定位、电话、短信、联系人等日常所需权限。</string>
+    <string name="onboarding_overlay_title">悬浮窗</string>
+    <string name="onboarding_overlay_desc">允许在其它应用上方显示，守护功能需要用到。</string>
+    <string name="onboarding_usage_title">使用统计</string>
+    <string name="onboarding_usage_desc">允许读取应用使用情况。</string>
+    <string name="onboarding_battery_title">电池白名单</string>
+    <string name="onboarding_battery_desc">允许后台运行，防止被系统清理掉。</string>
+    <string name="onboarding_autostart_title">自启动</string>
+    <string name="onboarding_autostart_desc">允许开机自动启动，各手机设置位置不同，需手动开启。</string>
+    <string name="onboarding_accessibility_title">无障碍服务</string>
+    <string name="onboarding_accessibility_desc">开启后提供朗读、点读与锁定保活服务。</string>
 </resources>

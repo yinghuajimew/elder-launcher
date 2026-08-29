@@ -7,6 +7,7 @@
     android:padding="8dp">
 
     <TextView
+        android:id="@+id/tv_add_circle"
         android:layout_width="60dp"
         android:layout_height="60dp"
         android:background="@drawable/bg_add_tile"
@@ -16,6 +17,7 @@
         android:textSize="36sp" />
 
     <TextView
+        android:id="@+id/tv_add_label"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"

@@ -5,6 +5,8 @@ import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.Notification
 import android.content.Context
 import android.content.Intent
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.speech.tts.TextToSpeech
 import android.view.KeyEvent
@@ -16,6 +18,7 @@ import com.elder.launcher.MainActivity
 import com.elder.launcher.desktop.DesktopApps
 import com.elder.launcher.keepalive.LockState
 import com.elder.launcher.setup.OnboardingState
+import java.util.Calendar
 import java.util.Locale
 
 /**
@@ -37,11 +40,21 @@ class ElderAccessibilityService : AccessibilityService() {
     /** 上一次"拉回前台"的时间，用于节流，避免高频重入造成循环。 */
     private var lastRelaunchMs = 0L
 
+    private val chimeHandler = Handler(Looper.getMainLooper())
+    private var lastChimeHour = -1
+    private val chimeRunnable = object : Runnable {
+        override fun run() {
+            checkHourlyChime()
+            chimeHandler.postDelayed(this, 30_000L)
+        }
+    }
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         isRunning = true
         initTts()
         enableKeyFiltering()
+        chimeHandler.post(chimeRunnable)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
@@ -139,6 +152,18 @@ class ElderAccessibilityService : AccessibilityService() {
         tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "elder_speak")
     }
 
+    /** 整点报时：每分钟检查一次，到整点用 TTS 播报。 */
+    private fun checkHourlyChime() {
+        if (!AccessibilitySettings.hourlyChime(this)) return
+        val cal = Calendar.getInstance()
+        val hour = cal.get(Calendar.HOUR_OF_DAY)
+        val minute = cal.get(Calendar.MINUTE)
+        if (minute == 0 && hour != lastChimeHour) {
+            lastChimeHour = hour
+            speak("现在${hour}点整")
+        }
+    }
+
     private fun initTts() {
         tts = TextToSpeech(applicationContext) { status ->
             if (status == TextToSpeech.SUCCESS) {
@@ -172,6 +197,7 @@ class ElderAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         isRunning = false
         currentForegroundPackage = null
+        chimeHandler.removeCallbacks(chimeRunnable)
         tts?.stop()
         tts?.shutdown()
         tts = null
