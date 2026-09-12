@@ -17,6 +17,7 @@ import com.elder.launcher.accessibility.AccessibilitySettings
 import com.elder.launcher.base.BaseActivity
 import com.elder.launcher.desktop.ClockSettings
 import com.elder.launcher.desktop.DesktopSettings
+import com.elder.launcher.desktop.NavBarSettings
 import com.elder.launcher.keepalive.LockState
 import com.elder.launcher.permission.PermissionDef
 import com.elder.launcher.permission.PermissionHelper
@@ -182,6 +183,7 @@ class MainActivity : BaseActivity() {
         ParentDef("permissions", getString(R.string.parent_permissions), { permissionSummary() }, { permissionItems() }),
         ParentDef("desktop", getString(R.string.parent_desktop), { getString(R.string.parent_desktop_sub) }, { desktopItems() }),
         ParentDef("player", getString(R.string.parent_player), { getString(R.string.parent_player_sub) }, { playerItems() }),
+        ParentDef("navbar", getString(R.string.parent_navbar), { navBarStatus() }, { navBarItems() }),
         ParentDef("lock", getString(R.string.title_lock), { lockStatus() }, { lockItems() }),
         ParentDef("about", getString(R.string.parent_about), { appVersion() }, { aboutItems() })
     )
@@ -391,6 +393,9 @@ class MainActivity : BaseActivity() {
             .show()
     }
 
+    private fun navBarStatus(): String =
+        if (NavBarSettings.anyEnabled(this)) getString(R.string.status_on) else getString(R.string.status_off)
+
     private fun playerItems(): List<SettingsItem> = listOf(
         SettingsItem(
             getString(R.string.player_resume),
@@ -398,6 +403,22 @@ class MainActivity : BaseActivity() {
             if (PlayerSettings.resumeEnabled(this)) getString(R.string.status_on) else getString(R.string.status_off)
         ) {
             PlayerSettings.setResumeEnabled(this, !PlayerSettings.resumeEnabled(this))
+            refresh()
+        },
+        SettingsItem(
+            getString(R.string.player_auto_resume),
+            getString(R.string.player_auto_resume_desc),
+            if (PlayerSettings.autoResumeOnUnlock(this)) getString(R.string.status_on) else getString(R.string.status_off)
+        ) {
+            PlayerSettings.setAutoResumeOnUnlock(this, !PlayerSettings.autoResumeOnUnlock(this))
+            refresh()
+        },
+        SettingsItem(
+            getString(R.string.player_loop),
+            getString(R.string.player_loop_desc),
+            if (PlayerSettings.loopEnabled(this)) getString(R.string.status_on) else getString(R.string.status_off)
+        ) {
+            PlayerSettings.setLoopEnabled(this, !PlayerSettings.loopEnabled(this))
             refresh()
         },
         SettingsItem(
@@ -451,6 +472,25 @@ class MainActivity : BaseActivity() {
             if (DesktopSettings.showExitButton(this)) getString(R.string.status_on) else getString(R.string.status_off)
         ) {
             DesktopSettings.setShowExitButton(this, !DesktopSettings.showExitButton(this))
+            refresh()
+        }
+    )
+
+    private fun navBarItems(): List<SettingsItem> = listOf(
+        SettingsItem(
+            getString(R.string.nav_back),
+            getString(R.string.nav_back_desc),
+            if (NavBarSettings.showBackButton(this)) getString(R.string.status_on) else getString(R.string.status_off)
+        ) {
+            NavBarSettings.setShowBackButton(this, !NavBarSettings.showBackButton(this))
+            refresh()
+        },
+        SettingsItem(
+            getString(R.string.nav_home),
+            getString(R.string.nav_home_desc),
+            if (NavBarSettings.showHomeButton(this)) getString(R.string.status_on) else getString(R.string.status_off)
+        ) {
+            NavBarSettings.setShowHomeButton(this, !NavBarSettings.showHomeButton(this))
             refresh()
         }
     )

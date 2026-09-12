@@ -75,12 +75,15 @@ class ElderAccessibilityService : AccessibilityService() {
         }
     }
 
-    /** 锁定态下拦截返回/最近任务按键，防止物理键逃出。 */
+    /** 锁定态下拦截返回/最近任务/主页/菜单按键，防止物理键逃出。 */
     override fun onKeyEvent(event: KeyEvent): Boolean {
         if (LockState.lockEnabled(this)) {
             when (event.keyCode) {
                 KeyEvent.KEYCODE_BACK,
-                KeyEvent.KEYCODE_APP_SWITCH -> return true
+                KeyEvent.KEYCODE_APP_SWITCH,
+                KeyEvent.KEYCODE_HOME,
+                KeyEvent.KEYCODE_MENU,
+                KeyEvent.KEYCODE_SEARCH -> return true
             }
         }
         return super.onKeyEvent(event)

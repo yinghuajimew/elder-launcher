@@ -8,12 +8,14 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.OpenableColumns
+import android.text.InputType
 import android.util.TypedValue
 import android.view.DragEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.Button
+import android.widget.EditText
 import android.widget.GridView
 import android.widget.LinearLayout
 import android.widget.TextClock
@@ -26,6 +28,7 @@ import com.elder.launcher.desktop.ClockSettings
 import com.elder.launcher.desktop.DesktopApps
 import com.elder.launcher.desktop.DesktopSettings
 import com.elder.launcher.desktop.DesktopTile
+import com.elder.launcher.desktop.NavBarSettings
 import com.elder.launcher.desktop.PageScrollView
 import com.elder.launcher.desktop.TileType
 import com.elder.launcher.keepalive.LockState
@@ -34,6 +37,7 @@ import com.elder.launcher.player.CoverStore
 import com.elder.launcher.player.Playlist
 import com.elder.launcher.player.VideoEntry
 import com.elder.launcher.player.VideoPlayerActivity
+import com.elder.launcher.player.VideoType
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -41,7 +45,7 @@ import java.util.Locale
 /**
  * 基础桌面（HOME）：固定时钟 + 磁贴网格（应用/视频，可设列数行数、超出一页横向翻页）+ 设置/退出入口。
  * 点击磁贴启动应用或播放视频；长按拖动排序 / 拖到删除区移除。
- * 「+」可选择添加应用或视频。
+ * 「+」可选择添加应用或视频（本地 / 网络），已添加视频列表可追加。
  */
 class DesktopActivity : BaseActivity() {
 
@@ -49,6 +53,9 @@ class DesktopActivity : BaseActivity() {
     private lateinit var pagesContainer: LinearLayout
     private lateinit var tiles: MutableList<DesktopTile>
     private lateinit var deleteZone: TextView
+    private lateinit var navBar: LinearLayout
+    private lateinit var btnNavBack: Button
+    private lateinit var btnNavHome: Button
 
     private var columns = 3
     private var rows = 3
@@ -72,6 +79,9 @@ class DesktopActivity : BaseActivity() {
         scrollView = findViewById(R.id.scroll_pages)
         pagesContainer = findViewById(R.id.pages_container)
         deleteZone = findViewById(R.id.tv_delete_zone)
+        navBar = findViewById(R.id.nav_bar)
+        btnNavBack = findViewById(R.id.btn_nav_back)
+        btnNavHome = findViewById(R.id.btn_nav_home)
 
         deleteZone.setOnDragListener { _, event -> handleDeleteZoneDrag(event) }
         findViewById<View>(R.id.root).setOnDragListener { _, event -> handleRootDrag(event) }
@@ -93,6 +103,16 @@ class DesktopActivity : BaseActivity() {
             refreshExitButton()
             true
         }
+
+        // 内置导航栏
+        btnNavBack.setOnClickListener { onBackPressed() }
+        btnNavHome.setOnClickListener {
+            // 回到桌面自身（相当于 Home 键）
+            val intent = Intent(this, DesktopActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            }
+            startActivity(intent)
+        }
     }
 
     override fun onResume() {
@@ -101,6 +121,28 @@ class DesktopActivity : BaseActivity() {
         renderClock()
         reloadAdapter()
         refreshExitButton()
+        refreshNavBar()
+        applyImmersiveSticky()
+    }
+
+    /** 锁定模式下隐藏系统导航栏，防止手势/三大金刚逃出。 */
+    @Suppress("DEPRECATION")
+    private fun applyImmersiveSticky() {
+        if (LockState.lockEnabled(this)) {
+            window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_FULLSCREEN or
+                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                    View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                )
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) applyImmersiveSticky()
     }
 
     private fun updateDateTime() {
@@ -268,7 +310,8 @@ class DesktopActivity : BaseActivity() {
     private fun showAddDialog() {
         val options = arrayOf(
             getString(R.string.add_app),
-            getString(R.string.add_video)
+            getString(R.string.add_video),
+            getString(R.string.add_video_network)
         )
         AlertDialog.Builder(this)
             .setTitle(R.string.add_dialog_title)
@@ -276,6 +319,7 @@ class DesktopActivity : BaseActivity() {
                 when (which) {
                     0 -> startActivity(Intent(this, AppPickerActivity::class.java))
                     1 -> pickVideo()
+                    2 -> addNetworkVideo()
                 }
             }
             .show()
@@ -291,6 +335,64 @@ class DesktopActivity : BaseActivity() {
             startActivityForResult(intent, REQ_PICK_VIDEO)
         } catch (_: Exception) {
             Toast.makeText(this, "无法打开文件选择器", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** 添加网络视频：弹出多行输入框，每行一个链接，自动识别文件名。 */
+    private fun addNetworkVideo() {
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(16), dp(24), dp(8))
+        }
+        val urlInput = EditText(this).apply {
+            hint = getString(R.string.add_video_url_batch_hint)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
+            minLines = 4
+            gravity = android.view.Gravity.TOP
+        }
+        container.addView(urlInput, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, dp(160)))
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.add_video_network)
+            .setMessage(R.string.add_video_url_batch_desc)
+            .setView(container)
+            .setPositiveButton(R.string.confirm) { _, _ ->
+                val text = urlInput.text.toString()
+                val entries = parseNetworkVideos(text)
+                if (entries.isEmpty()) {
+                    Toast.makeText(this, "未识别到有效的视频地址", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                // 网络视频批量添加时跳过封面选择，直接使用默认封面
+                addPlaylist(entries, "")
+                Toast.makeText(this, "已添加 ${entries.size} 个网络视频", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
+    /** 解析批量输入的网络视频：每行一个 URL，自动识别文件名。 */
+    private fun parseNetworkVideos(text: String): List<VideoEntry> {
+        val entries = mutableListOf<VideoEntry>()
+        val lines = text.split('\n', '\r', ' ', '\t')
+        for (raw in lines) {
+            val url = raw.trim()
+            if (url.isEmpty()) continue
+            if (!url.startsWith("http://") && !url.startsWith("https://")) continue
+            entries.add(VideoEntry(url, extractNetworkName(url), VideoType.NETWORK))
+        }
+        return entries
+    }
+
+    /** 从 URL 提取文件名：取路径最后一段并 URL 解码；失败则返回 URL 本身。 */
+    private fun extractNetworkName(url: String): String {
+        return try {
+            val path = Uri.parse(url).path ?: ""
+            val last = path.substringAfterLast('/')
+            if (last.isNotEmpty()) java.net.URLDecoder.decode(last, "UTF-8") else url
+        } catch (_: Exception) {
+            url
         }
     }
 
@@ -331,7 +433,7 @@ class DesktopActivity : BaseActivity() {
                 contentResolver.takePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             } catch (_: Exception) {
             }
-            entries.add(VideoEntry(u.toString(), queryDisplayName(u)))
+            entries.add(VideoEntry(u.toString(), queryDisplayName(u), VideoType.LOCAL))
         }
         promptCover(entries)
     }
@@ -347,11 +449,16 @@ class DesktopActivity : BaseActivity() {
             .setItems(options) { _, which ->
                 when (which) {
                     0 -> {
-                        val uri = Uri.parse(entries.first().uri)
-                        Thread {
-                            val cover = CoverStore.captureFromVideo(this, uri) ?: ""
-                            runOnUiThread { addPlaylist(entries, cover) }
-                        }.start()
+                        // 网络视频默认不走截帧
+                        if (entries.first().type == VideoType.NETWORK) {
+                            addPlaylist(entries, "")
+                        } else {
+                            val uri = Uri.parse(entries.first().uri)
+                            Thread {
+                                val cover = CoverStore.captureFromVideo(this, uri) ?: ""
+                                runOnUiThread { addPlaylist(entries, cover) }
+                            }.start()
+                        }
                     }
                     1 -> pickCoverImage(entries)
                     else -> addPlaylist(entries, "")
@@ -487,6 +594,17 @@ class DesktopActivity : BaseActivity() {
         val btn = findViewById<Button>(R.id.btn_exit_lock)
         btn.visibility = if (DesktopSettings.showExitButton(this)) View.VISIBLE else View.GONE
         btn.text = if (LockState.lockEnabled(this)) getString(R.string.btn_exit_lock) else getString(R.string.btn_lock)
+    }
+
+    /** 刷新内置导航栏的显隐和按钮。 */
+    private fun refreshNavBar() {
+        if (NavBarSettings.anyEnabled(this)) {
+            navBar.visibility = View.VISIBLE
+            btnNavBack.visibility = if (NavBarSettings.showBackButton(this)) View.VISIBLE else View.GONE
+            btnNavHome.visibility = if (NavBarSettings.showHomeButton(this)) View.VISIBLE else View.GONE
+        } else {
+            navBar.visibility = View.GONE
+        }
     }
 
     private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()

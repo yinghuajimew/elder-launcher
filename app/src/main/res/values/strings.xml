@@ -93,6 +93,10 @@
     <string name="parent_player_sub">播放设置与视频库</string>
     <string name="player_resume">记忆播放进度</string>
     <string name="player_resume_desc">再次打开同一视频时从上次位置继续</string>
+    <string name="player_auto_resume">锁屏后自动续播</string>
+    <string name="player_auto_resume_desc">锁屏后解锁回到播放页时自动继续播放</string>
+    <string name="player_loop">循环播放</string>
+    <string name="player_loop_desc">播放完最后一个视频后自动回到第一个继续播放</string>
     <string name="player_orientation">播放方向</string>
     <string name="player_orientation_auto">自动旋转</string>
     <string name="player_orientation_landscape">强制横屏</string>
@@ -113,6 +117,29 @@
     <string name="cover_auto">自动截取视频画面</string>
     <string name="cover_pick">从图库选一张图片</string>
     <string name="cover_default">用默认图标</string>
+
+    <!-- 添加视频 -->
+    <string name="add_video_network">添加网络视频</string>
+    <string name="add_video_url_hint">视频URL地址</string>
+    <string name="add_video_name_hint">视频名称（可选）</string>
+    <string name="add_video_url_batch_hint">每行粘贴一个视频直链\n例如：\nhttps://pan.axooo.cn/f/xxx/1.视频.mp4\nhttps://pan.axooo.cn/f/xxx/2.视频.mp4</string>
+    <string name="add_video_url_batch_desc">每行一个链接，自动识别文件名作为视频名称</string>
+    <string name="video_type_network">网络视频</string>
+
+    <!-- 排序 -->
+    <string name="sort_title">排序</string>
+    <string name="sort_add_order">添加顺序</string>
+    <string name="sort_name_az">名称 A-Z</string>
+    <string name="sort_name_za">名称 Z-A</string>
+    <string name="sort_manual">手动拖动排序</string>
+    <string name="sort_manual_hint">长按条目可拖动排序</string>
+
+    <!-- 内置导航栏 -->
+    <string name="parent_navbar">内置导航栏</string>
+    <string name="nav_back">返回键</string>
+    <string name="nav_back_desc">桌面底部显示内置返回键，替代系统按键</string>
+    <string name="nav_home">主页键</string>
+    <string name="nav_home_desc">桌面底部显示内置主页键，替代系统按键</string>
 
     <!-- 时钟设置 -->
     <string name="clock_mode">时钟样式</string>

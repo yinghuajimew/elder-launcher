@@ -59,6 +59,36 @@
                 android:gravity="center_vertical"
                 android:orientation="horizontal" />
         </com.elder.launcher.desktop.PageScrollView>
+
+        <!-- 内置导航栏：返回键 + 主页键 -->
+        <LinearLayout
+            android:id="@+id/nav_bar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#E8E0D0"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:padding="8dp"
+            android:visibility="gone">
+
+            <Button
+                android:id="@+id/btn_nav_back"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:text="@string/nav_back"
+                android:textSize="16sp" />
+
+            <Button
+                android:id="@+id/btn_nav_home"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:layout_marginStart="4dp"
+                android:text="@string/nav_home"
+                android:textSize="16sp" />
+        </LinearLayout>
     </LinearLayout>
 
     <!-- 左上角：设置 -->
